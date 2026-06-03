@@ -139,7 +139,7 @@ def _show_ramp_up(session, exp):
             try:
                 update_experiment_traffic(session, exp.id, new_pct)
                 st.success(f"流量已调整为 {new_pct:.0f}%")
-                st.rerun()
+                st.experimental_rerun()
             except ValueError as e:
                 st.error(str(e))
 
@@ -169,7 +169,7 @@ def _show_data_simulation(session, exp):
         if st.button("⚠️ 清空旧数据并重新生成", type="secondary"):
             session.query(EventLog).filter(EventLog.experiment_id == exp.id).delete()
             session.commit()
-            st.rerun()
+            st.experimental_rerun()
     else:
         if st.button("🚀 开始生成模拟数据", type="primary", use_container_width=True):
             with st.spinner("正在生成用户画像和事件日志..."):
@@ -184,6 +184,6 @@ def _show_data_simulation(session, exp):
                     )
                     st.success(f"✅ 成功生成 {total_events} 条事件记录！")
                     st.balloons()
-                    st.rerun()
+                    st.experimental_rerun()
                 except Exception as e:
                     st.error(f"生成失败：{e}")

@@ -67,32 +67,32 @@ def _show_status_buttons(session, exp):
     if exp.status == "draft":
         if cols[idx].button("▶ 灰度", key=f"ramp_{exp.id}"):
             update_experiment_status(session, exp.id, "ramp_up")
-            st.rerun()
+            st.experimental_rerun()
         idx += 1
         if cols[idx].button("🗑 删除", key=f"del_{exp.id}"):
             delete_experiment(session, exp.id)
-            st.rerun()
+            st.experimental_rerun()
     elif exp.status == "ramp_up":
         if cols[0].button("▶ 全量", key=f"run_{exp.id}"):
             update_experiment_status(session, exp.id, "running")
-            st.rerun()
+            st.experimental_rerun()
         if cols[1].button("⏸ 暂停", key=f"pause_{exp.id}"):
             update_experiment_status(session, exp.id, "paused")
-            st.rerun()
+            st.experimental_rerun()
     elif exp.status == "running":
         if cols[0].button("⏸ 暂停", key=f"pause2_{exp.id}"):
             update_experiment_status(session, exp.id, "paused")
-            st.rerun()
+            st.experimental_rerun()
         if cols[1].button("⏹ 结束", key=f"end_{exp.id}"):
             update_experiment_status(session, exp.id, "ended")
-            st.rerun()
+            st.experimental_rerun()
     elif exp.status == "paused":
         if cols[0].button("▶ 恢复", key=f"resume_{exp.id}"):
             update_experiment_status(session, exp.id, "running")
-            st.rerun()
+            st.experimental_rerun()
         if cols[1].button("⏹ 结束", key=f"end2_{exp.id}"):
             update_experiment_status(session, exp.id, "ended")
-            st.rerun()
+            st.experimental_rerun()
 
 
 def _show_create_form():
@@ -127,7 +127,7 @@ def _show_create_form():
                     ]
                     exp = create_experiment(session, name, hypothesis, owner, traffic, group_configs)
                     st.success(f"实验 '{exp.name}' 创建成功！状态：草稿")
-                    st.rerun()
+                    st.experimental_rerun()
                 except Exception as e:
                     st.error(f"创建失败：{e}")
                 finally:
