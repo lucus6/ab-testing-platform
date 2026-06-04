@@ -132,37 +132,74 @@ def _show_main_app():
 
 
 def _show_user_center():
-    from services.auth_service import change_password, logout_session
+    from services.auth_service import change_password, logout_session, update_profile
     user = st.session_state.user
 
     st.title("👤 用户中心")
 
-    tab1, tab2, tab3 = st.tabs(["基本信息", "修改密码", "账户安全"])
+    tab1, tab2, tab3 = st.tabs(["📝 个人资料", "🔒 修改密码", "⚙️ 账户安全"])
 
+    # ── Tab 1: 个人资料 ──
     with tab1:
         s = get_session()
         try:
             u = s.query(models.User).filter_by(id=user["id"]).first()
-            if u:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("用户名", u.username)
-                    st.metric("邮箱", u.email or "未填写")
-                with col2:
-                    st.metric("注册时间", u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "-")
-            else:
+            if not u:
                 st.warning("用户信息加载失败")
+                return
+
+            st.subheader("基本信息")
+            info_col1, info_col2, info_col3 = st.columns(3)
+            with info_col1:
+                st.markdown(f"**用户名**  \n{u.username}")
+            with info_col2:
+                st.markdown(f"**部门**  \n{u.department or '未设置'}")
+            with info_col3:
+                st.markdown(f"**职位**  \n{u.position or '未设置'}")
+
+            info_col4, info_col5 = st.columns(2)
+            with info_col4:
+                st.markdown(f"**邮箱**  \n{u.email or '未设置'}")
+            with info_col5:
+                reg_time = u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "-"
+                st.markdown(f"**注册时间**  \n{reg_time}")
+
+            if u.bio:
+                st.markdown(f"**个人简介**  \n{u.bio}")
+
+            st.markdown("---")
+            st.subheader("编辑资料")
+            with st.form("edit_profile"):
+                ec1, ec2 = st.columns(2)
+                with ec1:
+                    new_department = st.text_input("部门", value=u.department or "", placeholder="如：数据科学部")
+                    new_email = st.text_input("邮箱", value=u.email or "", placeholder="如：zhangsan@company.com")
+                with ec2:
+                    new_position = st.text_input("职位", value=u.position or "", placeholder="如：高级数据分析师")
+                new_bio = st.text_area("个人简介", value=u.bio or "", placeholder="一句话介绍自己...", max_chars=300)
+                if st.form_submit_button("💾 保存资料", type="primary"):
+                    s2 = get_session()
+                    try:
+                        update_profile(s2, user["id"],
+                                       department=new_department,
+                                       position=new_position,
+                                       email=new_email,
+                                       bio=new_bio)
+                        st.success("资料已更新！")
+                        st.experimental_rerun()
+                    finally:
+                        s2.close()
         finally:
             s.close()
 
+    # ── Tab 2: 修改密码 ──
     with tab2:
+        st.subheader("修改密码")
         with st.form("change_pwd_form"):
-            st.markdown("**修改密码**")
             old_pwd = st.text_input("当前密码", type="password", key="old_pwd")
             new_pwd = st.text_input("新密码（至少6位）", type="password", key="new_pwd")
             new_pwd2 = st.text_input("确认新密码", type="password", key="new_pwd3")
-            submitted = st.form_submit_button("确认修改", type="primary")
-            if submitted:
+            if st.form_submit_button("确认修改", type="primary"):
                 if new_pwd != new_pwd2:
                     st.error("两次密码不一致")
                 elif len(new_pwd) < 6:
@@ -178,9 +215,10 @@ def _show_user_center():
                     finally:
                         s.close()
 
+    # ── Tab 3: 账户安全 ──
     with tab3:
-        st.markdown("### 退出登录")
-        st.caption("跳转到登录页，不会删除任何数据。")
+        st.subheader("退出登录")
+        st.caption("跳转到登录页，不删除任何数据。")
         if st.button("🚪 退出登录", key="btn_logout"):
             s = get_session()
             try:
@@ -192,10 +230,9 @@ def _show_user_center():
             st.experimental_rerun()
 
         st.markdown("---")
-        st.markdown("### 注销账户")
+        st.subheader("注销账户")
         st.warning("⚠️ 注销后你的账户和所有实验数据将被**永久删除**，不可恢复。")
 
-        # 确认机制
         if "confirm_delete_account" not in st.session_state:
             st.session_state.confirm_delete_account = False
 

@@ -12,6 +12,9 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(128), nullable=False)
     email = Column(String(100))
+    department = Column(String(100), default="")
+    position = Column(String(100), default="")
+    bio = Column(String(300), default="")
     created_at = Column(DateTime, default=datetime.now)
 
     experiments = relationship("Experiment", back_populates="creator")

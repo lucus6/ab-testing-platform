@@ -95,6 +95,19 @@ def logout_session(session: Session, token: str):
     session.commit()
 
 
+def update_profile(session: Session, user_id: int, **kwargs) -> User:
+    """更新用户资料：department, position, bio, email"""
+    user = session.query(User).filter_by(id=user_id).first()
+    if not user:
+        raise ValueError("用户不存在")
+    for field in ("email", "department", "position", "bio"):
+        if field in kwargs:
+            setattr(user, field, kwargs[field] or "")
+    session.commit()
+    session.refresh(user)
+    return user
+
+
 def delete_account(session: Session, user_id: int) -> bool:
     """注销账户：删除用户及其所有实验数据、session"""
     from models import Experiment, EventLog, ExperimentGroup
