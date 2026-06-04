@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from models import Experiment, ExperimentGroup, Layer
+from models import Experiment, ExperimentGroup, Layer, User
 
 # 状态流转规则
 VALID_TRANSITIONS = {
@@ -42,40 +42,40 @@ def get_or_create_default_layer(session: Session) -> Layer:
     return layer
 
 
-def _generate_experiment_code(session: Session, owner: str) -> str:
-    """生成实验业务编号：EXP-{owner缩写}-{YYYYMMDD}-{当日序号}"""
+def _generate_experiment_code(session: Session, username: str) -> str:
+    """生成实验业务编号：EXP-{用户名缩写}-{YYYYMMDD}-{当日序号}"""
     today_str = date.today().strftime("%Y%m%d")
-    owner_abbr = owner[:4] if len(owner) >= 2 else owner
-    # 查询今天该 owner 已创建的数量
+    uname_abbr = username[:4] if len(username) >= 2 else username
     count_today = (
         session.query(func.count(Experiment.id))
         .filter(
-            Experiment.owner == owner,
+            Experiment.creator.has(username=username),
             func.date(Experiment.created_at) == date.today(),
         )
         .scalar() or 0
     )
     seq = str(count_today + 1).zfill(3)
-    return f"EXP-{owner_abbr}-{today_str}-{seq}"
+    return f"EXP-{uname_abbr}-{today_str}-{seq}"
 
 
 def create_experiment(
     session: Session,
     name: str,
     hypothesis: str,
-    owner: str,
+    creator_id: int,
     total_traffic_pct: float = 10.0,
     group_configs: list = None,
 ) -> Experiment:
     """创建实验及其分组"""
     layer = get_or_create_default_layer(session)
-    exp_code = _generate_experiment_code(session, owner)
+    user = session.query(User).filter_by(id=creator_id).first()
+    exp_code = _generate_experiment_code(session, user.username)
 
     exp = Experiment(
         experiment_code=exp_code,
         name=name,
         hypothesis=hypothesis,
-        owner=owner,
+        creator_id=creator_id,
         total_traffic_pct=total_traffic_pct,
         layer_id=layer.id,
         status="draft",
@@ -161,12 +161,18 @@ def get_experiment(session: Session, exp_id: int) -> Experiment:
     return session.query(Experiment).filter_by(id=exp_id).first()
 
 
-def list_experiments(session: Session) -> list:
-    return session.query(Experiment).order_by(Experiment.created_at.desc()).all()
+def list_experiments(session: Session, creator_id: int = None) -> list:
+    q = session.query(Experiment)
+    if creator_id is not None:
+        q = q.filter(Experiment.creator_id == creator_id)
+    return q.order_by(Experiment.created_at.desc()).all()
 
 
-def delete_experiment(session: Session, exp_id: int):
-    exp = session.query(Experiment).filter_by(id=exp_id).first()
+def delete_experiment(session: Session, exp_id: int, creator_id: int = None):
+    q = session.query(Experiment).filter_by(id=exp_id)
+    if creator_id is not None:
+        q = q.filter(Experiment.creator_id == creator_id)
+    exp = q.first()
     if exp and exp.status == "draft":
         session.delete(exp)
         session.commit()

@@ -19,12 +19,13 @@ def show():
 
 
 def _select_and_analyze(session):
-    exps = list_experiments(session)
+    user = st.session_state.user
+    exps = list_experiments(session, creator_id=user["id"])
     if not exps:
         st.warning("暂无实验，请先在实验管理页创建并模拟数据")
         return
 
-    options = {f"[{STATUS_LABELS[e.status]}] {e.name} (ID:{e.id})": e.id for e in exps}
+    options = {f"[{STATUS_LABELS[e.status]}] {e.name} ({e.experiment_code})": e.id for e in exps}
     selected = st.selectbox("选择实验", list(options.keys()))
     if not selected:
         return

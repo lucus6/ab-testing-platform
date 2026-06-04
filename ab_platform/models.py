@@ -5,6 +5,18 @@ from sqlalchemy.orm import relationship
 from database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    password_hash = Column(String(128), nullable=False)
+    email = Column(String(100))
+    created_at = Column(DateTime, default=datetime.now)
+
+    experiments = relationship("Experiment", back_populates="creator")
+
+
 class Layer(Base):
     __tablename__ = "layers"
 
@@ -21,18 +33,19 @@ class Experiment(Base):
     __tablename__ = "experiments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    experiment_code = Column(String(50), unique=True, nullable=False, index=True)  # 业务编号 EXP-{owner}-{date}-{seq}
+    experiment_code = Column(String(50), unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False)
     hypothesis = Column(Text)
-    status = Column(String(20), default="draft")  # draft/ramp_up/running/paused/ended
-    owner = Column(String(100))
-    total_traffic_pct = Column(Float, default=10.0)  # 占总流量百分比
+    status = Column(String(20), default="draft")
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    total_traffic_pct = Column(Float, default=10.0)
     start_date = Column(Date)
     end_date = Column(Date)
     layer_id = Column(Integer, ForeignKey("layers.id"))
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
+    creator = relationship("User", back_populates="experiments")
     layer = relationship("Layer", back_populates="experiments")
     groups = relationship("ExperimentGroup", back_populates="experiment", cascade="all, delete-orphan")
 

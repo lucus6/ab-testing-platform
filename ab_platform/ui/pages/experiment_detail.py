@@ -25,11 +25,12 @@ def show():
 def _select_experiment(session):
     """选择要查看的实验"""
     from services.experiment_service import list_experiments
-    exps = list_experiments(session)
+    user = st.session_state.user
+    exps = list_experiments(session, creator_id=user["id"])
     if not exps:
         st.warning("暂无实验，请先在实验管理页创建")
         return
-    options = {f"[{STATUS_LABELS[e.status]}] {e.name} (ID:{e.id})": e.id for e in exps}
+    options = {f"[{STATUS_LABELS[e.status]}] {e.name} ({e.experiment_code})": e.id for e in exps}
     selected = st.selectbox("选择实验", list(options.keys()))
     if selected:
         exp_id = options[selected]
@@ -52,7 +53,7 @@ def _show_detail(session, exp):
 
 
 def _show_basic_info(exp):
-    st.markdown(f"**实验编号：** `{exp.experiment_code}`")
+    st.markdown(f"**实验编号：** `{exp.experiment_code}` | 创建人：{exp.creator.username}")
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("状态", STATUS_LABELS[exp.status])
@@ -62,7 +63,7 @@ def _show_basic_info(exp):
         st.metric("实验组数", len(exp.groups))
 
     st.markdown(f"**假设：** {exp.hypothesis or '未填写'}")
-    st.markdown(f"**负责人：** {exp.owner or '-'}  |  开始：{exp.start_date or '-'}  |  结束：{exp.end_date or '-'}")
+    st.markdown(f"开始：{exp.start_date or '-'}  |  结束：{exp.end_date or '-'}")
 
 
 def _show_bucket_viz(session, exp):
