@@ -6,6 +6,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 from database import init_db, get_session
 import models
+import json
+import os as _os
 
 st.set_page_config(
     page_title="DataFly AB实验平台",
@@ -18,20 +20,63 @@ init_db()
 
 
 def _restore_session():
-    """通过 URL query param 恢复登录态"""
+    """双通道恢复登录态：URL query param + 本地缓存文件"""
+    from services.auth_service import validate_session
+
+    token = None
+    # 通道1: URL query param
     params = st.experimental_get_query_params()
     token = params.get("token", [None])[0]
+
+    # 通道2: 本地缓存文件
+    if not token:
+        cache_dir = _os.path.join(_os.path.dirname(__file__), ".cache")
+        if _os.path.exists(cache_dir):
+            for fname in _os.listdir(cache_dir):
+                if fname.endswith(".session"):
+                    try:
+                        with open(_os.path.join(cache_dir, fname)) as f:
+                            data = json.load(f)
+                        token = data.get("token")
+                        break
+                    except Exception:
+                        pass
+
     if token:
         s = get_session()
         try:
-            from services.auth_service import validate_session
             user = validate_session(s, token)
             if user:
                 st.session_state.user = {"id": user.id, "username": user.username, "token": token}
+                # 确保 query param 同步
+                st.experimental_set_query_params(token=token)
                 return
         finally:
             s.close()
+
     st.session_state.user = None
+
+
+def _save_session_cache(token: str):
+    """将 token 写入本地缓存文件，用于刷新后恢复"""
+    cache_dir = _os.path.join(_os.path.dirname(__file__), ".cache")
+    try:
+        _os.makedirs(cache_dir, exist_ok=True)
+        cache_file = _os.path.join(cache_dir, "session.session")
+        with open(cache_file, "w") as f:
+            json.dump({"token": token}, f)
+    except Exception:
+        pass
+
+
+def _clear_session_cache():
+    """清除本地缓存文件"""
+    cache_file = _os.path.join(_os.path.dirname(__file__), ".cache", "session.session")
+    try:
+        if _os.path.exists(cache_file):
+            _os.remove(cache_file)
+    except Exception:
+        pass
 
 
 # ── 登录态恢复 ────────────────────────────────────────────
@@ -66,6 +111,7 @@ def _show_auth_page():
                         user = s.query(models.User).filter_by(username=username.strip()).first()
                         st.session_state.user = {"id": user.id, "username": user.username, "token": token}
                         st.experimental_set_query_params(token=token)
+                        _save_session_cache(token)
                         st.success("登录成功！")
                         st.experimental_rerun()
                     else:
@@ -227,6 +273,7 @@ def _show_user_center():
                 s.close()
             st.session_state.user = None
             st.experimental_set_query_params()
+            _clear_session_cache()
             st.experimental_rerun()
 
         st.markdown("---")
@@ -254,6 +301,7 @@ def _show_user_center():
                     st.session_state.user = None
                     st.session_state.confirm_delete_account = False
                     st.experimental_set_query_params()
+                    _clear_session_cache()
                     st.experimental_rerun()
             with col2:
                 if st.button("❌ 取消", key="btn_cancel_delete"):
