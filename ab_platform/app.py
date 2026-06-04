@@ -16,15 +16,6 @@ st.set_page_config(
 
 init_db()
 
-# ── 登录态检查 ──────────────────────────────────────────
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-if st.session_state.user is None:
-    _show_auth_page()
-else:
-    _show_main_app()
-
 
 def _show_auth_page():
     st.markdown("""
@@ -84,7 +75,6 @@ def _show_auth_page():
 def _show_main_app():
     user = st.session_state.user
 
-    # 侧边栏
     with st.sidebar:
         st.markdown(f"## ✈️ DataFly")
         st.markdown(f"👤 **{user['username']}**")
@@ -101,7 +91,6 @@ def _show_main_app():
             st.session_state.user = None
             st.experimental_rerun()
 
-    # 页面路由
     if page == "📋 实验管理":
         from ui.pages.experiments import show
     elif page == "📊 实验详情":
@@ -110,3 +99,13 @@ def _show_main_app():
         from ui.pages.results import show
 
     show()
+
+
+# ── 入口 ──────────────────────────────────────────────
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if st.session_state.user is None:
+    _show_auth_page()
+else:
+    _show_main_app()
