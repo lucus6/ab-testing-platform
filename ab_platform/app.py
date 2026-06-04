@@ -124,6 +124,9 @@ def _show_main_app():
         from ui.pages.results import show
     elif page == "👤 用户中心":
         _show_user_center()
+        return
+    else:
+        return
 
     show()
 
