@@ -4,7 +4,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import streamlit as st
-from database import init_db
+from database import init_db, get_session
 import models
 
 st.set_page_config(
@@ -17,6 +17,31 @@ st.set_page_config(
 init_db()
 
 
+def _restore_session():
+    """通过 URL query param 恢复登录态"""
+    params = st.experimental_get_query_params()
+    token = params.get("token", [None])[0]
+    if token:
+        s = get_session()
+        try:
+            from services.auth_service import validate_session
+            user = validate_session(s, token)
+            if user:
+                st.session_state.user = {"id": user.id, "username": user.username, "token": token}
+                return
+        finally:
+            s.close()
+    st.session_state.user = None
+
+
+# ── 登录态恢复 ────────────────────────────────────────────
+if "user" not in st.session_state:
+    _restore_session()
+
+
+# ═══════════════════════════════════════════════════════════
+# 认证页面
+# ═══════════════════════════════════════════════════════════
 def _show_auth_page():
     st.markdown("""
     <div style="text-align:center; margin-top:60px;">
@@ -33,13 +58,14 @@ def _show_auth_page():
             password = st.text_input("密码", type="password", key="login_password")
             submitted = st.form_submit_button("登录", type="primary", use_container_width=True)
             if submitted:
-                from database import get_session
                 from services.auth_service import login_user
                 s = get_session()
                 try:
-                    user = login_user(s, username.strip(), password)
-                    if user:
-                        st.session_state.user = {"id": user.id, "username": user.username}
+                    token = login_user(s, username.strip(), password)
+                    if token:
+                        user = s.query(models.User).filter_by(username=username.strip()).first()
+                        st.session_state.user = {"id": user.id, "username": user.username, "token": token}
+                        st.experimental_set_query_params(token=token)
                         st.success("登录成功！")
                         st.experimental_rerun()
                     else:
@@ -60,7 +86,6 @@ def _show_auth_page():
                 elif len(new_pwd) < 6:
                     st.error("密码长度至少 6 位")
                 else:
-                    from database import get_session
                     from services.auth_service import register_user
                     s = get_session()
                     try:
@@ -72,6 +97,9 @@ def _show_auth_page():
                         s.close()
 
 
+# ═══════════════════════════════════════════════════════════
+# 主应用
+# ═══════════════════════════════════════════════════════════
 def _show_main_app():
     user = st.session_state.user
 
@@ -82,14 +110,11 @@ def _show_main_app():
 
         page = st.radio(
             "导航",
-            ["📋 实验管理", "📊 实验详情", "📈 结果分析"],
+            ["📋 实验管理", "📊 实验详情", "📈 结果分析", "👤 用户中心"],
             label_visibility="collapsed",
         )
 
         st.markdown("---")
-        if st.button("🚪 退出登录", use_container_width=True):
-            st.session_state.user = None
-            st.experimental_rerun()
 
     if page == "📋 实验管理":
         from ui.pages.experiments import show
@@ -97,14 +122,78 @@ def _show_main_app():
         from ui.pages.experiment_detail import show
     elif page == "📈 结果分析":
         from ui.pages.results import show
+    elif page == "👤 用户中心":
+        _show_user_center()
 
     show()
 
 
-# ── 入口 ──────────────────────────────────────────────
-if "user" not in st.session_state:
-    st.session_state.user = None
+def _show_user_center():
+    from services.auth_service import change_password, logout_session
+    user = st.session_state.user
 
+    st.title("👤 用户中心")
+
+    tab1, tab2, tab3 = st.tabs(["基本信息", "修改密码", "账户安全"])
+
+    with tab1:
+        s = get_session()
+        try:
+            u = s.query(models.User).filter_by(id=user["id"]).first()
+            if u:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("用户名", u.username)
+                    st.metric("邮箱", u.email or "未填写")
+                with col2:
+                    st.metric("注册时间", u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "-")
+            else:
+                st.warning("用户信息加载失败")
+        finally:
+            s.close()
+
+    with tab2:
+        with st.form("change_pwd_form"):
+            st.markdown("**修改密码**")
+            old_pwd = st.text_input("当前密码", type="password", key="old_pwd")
+            new_pwd = st.text_input("新密码（至少6位）", type="password", key="new_pwd")
+            new_pwd2 = st.text_input("确认新密码", type="password", key="new_pwd3")
+            submitted = st.form_submit_button("确认修改", type="primary")
+            if submitted:
+                if new_pwd != new_pwd2:
+                    st.error("两次密码不一致")
+                elif len(new_pwd) < 6:
+                    st.error("密码长度至少 6 位")
+                else:
+                    s = get_session()
+                    try:
+                        ok = change_password(s, user["id"], old_pwd, new_pwd)
+                        if ok:
+                            st.success("密码修改成功！")
+                        else:
+                            st.error("当前密码错误")
+                    finally:
+                        s.close()
+
+    with tab3:
+        st.markdown("**注销账户**")
+        st.warning("注销后所有数据将被永久删除，不可恢复。")
+        with st.form("logout_form"):
+            st.markdown("退出登录将跳转到登录页，不会删除数据。")
+            if st.form_submit_button("🚪 退出登录", type="secondary"):
+                s = get_session()
+                try:
+                    logout_session(s, user.get("token", ""))
+                finally:
+                    s.close()
+                st.session_state.user = None
+                st.experimental_set_query_params()
+                st.experimental_rerun()
+
+
+# ═══════════════════════════════════════════════════════════
+# 入口
+# ═══════════════════════════════════════════════════════════
 if st.session_state.user is None:
     _show_auth_page()
 else:
