@@ -179,19 +179,49 @@ def _show_user_center():
                         s.close()
 
     with tab3:
-        st.markdown("**注销账户**")
-        st.warning("注销后所有数据将被永久删除，不可恢复。")
-        with st.form("logout_form"):
-            st.markdown("退出登录将跳转到登录页，不会删除数据。")
-            if st.form_submit_button("🚪 退出登录", type="secondary"):
-                s = get_session()
-                try:
-                    logout_session(s, user.get("token", ""))
-                finally:
-                    s.close()
-                st.session_state.user = None
-                st.experimental_set_query_params()
+        st.markdown("### 退出登录")
+        st.caption("跳转到登录页，不会删除任何数据。")
+        if st.button("🚪 退出登录", key="btn_logout"):
+            s = get_session()
+            try:
+                logout_session(s, user.get("token", ""))
+            finally:
+                s.close()
+            st.session_state.user = None
+            st.experimental_set_query_params()
+            st.experimental_rerun()
+
+        st.markdown("---")
+        st.markdown("### 注销账户")
+        st.warning("⚠️ 注销后你的账户和所有实验数据将被**永久删除**，不可恢复。")
+
+        # 确认机制
+        if "confirm_delete_account" not in st.session_state:
+            st.session_state.confirm_delete_account = False
+
+        if not st.session_state.confirm_delete_account:
+            if st.button("🗑 注销账户", key="btn_delete_account", type="secondary"):
+                st.session_state.confirm_delete_account = True
                 st.experimental_rerun()
+        else:
+            st.error("确定要注销账户吗？此操作不可撤销！")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ 确认注销", key="btn_confirm_delete"):
+                    from services.auth_service import delete_account
+                    s = get_session()
+                    try:
+                        delete_account(s, user["id"])
+                    finally:
+                        s.close()
+                    st.session_state.user = None
+                    st.session_state.confirm_delete_account = False
+                    st.experimental_set_query_params()
+                    st.experimental_rerun()
+            with col2:
+                if st.button("❌ 取消", key="btn_cancel_delete"):
+                    st.session_state.confirm_delete_account = False
+                    st.experimental_rerun()
 
 
 # ═══════════════════════════════════════════════════════════

@@ -95,6 +95,26 @@ def logout_session(session: Session, token: str):
     session.commit()
 
 
+def delete_account(session: Session, user_id: int) -> bool:
+    """注销账户：删除用户及其所有实验数据、session"""
+    from models import Experiment, EventLog, ExperimentGroup
+    user = session.query(User).filter_by(id=user_id).first()
+    if not user:
+        return False
+    # 删除该用户的所有实验（cascade 会删 groups）
+    exp_ids = [e[0] for e in session.query(Experiment.id).filter_by(creator_id=user_id).all()]
+    for eid in exp_ids:
+        session.query(EventLog).filter_by(experiment_id=eid).delete()
+        session.query(ExperimentGroup).filter_by(experiment_id=eid).delete()
+        session.query(Experiment).filter_by(id=eid).delete()
+    # 删除 session
+    session.query(UserSession).filter_by(user_id=user_id).delete()
+    # 删除用户
+    session.delete(user)
+    session.commit()
+    return True
+
+
 def change_password(session: Session, user_id: int, old_pwd: str, new_pwd: str) -> bool:
     """修改密码"""
     user = session.query(User).filter_by(id=user_id).first()

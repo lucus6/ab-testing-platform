@@ -27,7 +27,7 @@ def show():
 def _show_experiment_list(user):
     session = get_session()
     try:
-        experiments = list_experiments(session, creator_id=user["id"])
+        experiments = list_experiments(session)  # 所有人可见所有实验
         if not experiments:
             st.info("暂无实验，请点击「新建实验」创建")
             return
@@ -61,6 +61,10 @@ def _show_experiment_list(user):
 
 
 def _show_status_buttons(session, exp, user):
+    is_owner = exp.creator_id == user["id"]
+    if not is_owner:
+        st.caption("🔒 仅创建者可操作")
+        return
     cols = st.columns(3)
     idx = 0
     if exp.status == "draft":

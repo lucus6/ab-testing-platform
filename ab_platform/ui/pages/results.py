@@ -19,8 +19,7 @@ def show():
 
 
 def _select_and_analyze(session):
-    user = st.session_state.user
-    exps = list_experiments(session, creator_id=user["id"])
+    exps = list_experiments(session)  # 所有人可见所有实验
     if not exps:
         st.warning("暂无实验，请先在实验管理页创建并模拟数据")
         return
