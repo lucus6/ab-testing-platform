@@ -32,11 +32,46 @@ def _show_experiment_list(user):
     session = get_session()
     try:
         experiments = list_experiments(session)
-        if not experiments:
-            st.info("暂无实验，请点击「新建实验」创建")
+
+        # ── 筛选栏 ──
+        col_filter, col_status, col_search = st.columns([1.5, 1.5, 2])
+        with col_filter:
+            owner_filter = st.radio(
+                "归属筛选",
+                ["全部实验", "我的实验"],
+                horizontal=True,
+                key="owner_filter",
+                label_visibility="collapsed",
+            )
+        with col_status:
+            status_options = ["全部状态"] + [STATUS_LABELS[s] for s in ["draft", "ramp_up", "running", "paused", "ended"]]
+            status_filter = st.selectbox("状态筛选", status_options, key="status_filter", label_visibility="collapsed")
+        with col_search:
+            search_keyword = st.text_input("搜索", placeholder="实验名称/编号...", key="search_keyword", label_visibility="collapsed")
+
+        # ── 应用筛选 ──
+        filtered = experiments
+        if owner_filter == "我的实验":
+            filtered = [e for e in filtered if e.creator_id == user["id"]]
+        if status_filter != "全部状态":
+            status_map_rev = {v: k for k, v in STATUS_LABELS.items()}
+            target_status = status_map_rev.get(status_filter)
+            if target_status:
+                filtered = [e for e in filtered if e.status == target_status]
+        if search_keyword.strip():
+            kw = search_keyword.strip().lower()
+            filtered = [
+                e for e in filtered
+                if kw in e.name.lower() or kw in e.experiment_code.lower() or kw in e.creator.username.lower()
+            ]
+
+        st.caption(f"共 {len(filtered)} / {len(experiments)} 个实验")
+
+        if not filtered:
+            st.info("没有匹配的实验")
             return
 
-        for exp in experiments:
+        for exp in filtered:
             with st.container():
                 col1, col2, col3, col4, col5, col6 = st.columns([3, 1.5, 1, 1.5, 2, 2])
                 with col1:
