@@ -43,19 +43,24 @@ def get_or_create_default_layer(session: Session) -> Layer:
 
 
 def _generate_experiment_code(session: Session, username: str) -> str:
-    """生成实验业务编号：EXP-{用户名缩写}-{YYYYMMDD}-{当日序号}"""
+    """生成实验业务编号：EXP-{用户名缩写}-{YYYYMMDD}-{当日最大序号+1}"""
     today_str = date.today().strftime("%Y%m%d")
     uname_abbr = username[:4] if len(username) >= 2 else username
-    count_today = (
-        session.query(func.count(Experiment.id))
+    prefix = f"EXP-{uname_abbr}-{today_str}-"
+    # 查询今天该用户最大的序号
+    max_code = (
+        session.query(func.max(Experiment.experiment_code))
         .filter(
-            Experiment.creator.has(username=username),
-            func.date(Experiment.created_at) == date.today(),
+            Experiment.experiment_code.like(f"{prefix}%"),
         )
-        .scalar() or 0
+        .scalar()
     )
-    seq = str(count_today + 1).zfill(3)
-    return f"EXP-{uname_abbr}-{today_str}-{seq}"
+    if max_code:
+        max_seq = int(max_code.split("-")[-1])
+    else:
+        max_seq = 0
+    seq = str(max_seq + 1).zfill(3)
+    return f"{prefix}{seq}"
 
 
 def create_experiment(

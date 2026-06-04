@@ -15,6 +15,10 @@ def show():
     st.title("📋 实验管理")
     user = st.session_state.user
 
+    # 初始化确认状态
+    if "confirm" not in st.session_state:
+        st.session_state.confirm = None  # 格式: {"action": "delete"/"status", "exp_id": x, "new_status": "..."}
+
     tab1, tab2 = st.tabs(["实验列表", "新建实验"])
 
     with tab1:
@@ -27,7 +31,7 @@ def show():
 def _show_experiment_list(user):
     session = get_session()
     try:
-        experiments = list_experiments(session)  # 所有人可见所有实验
+        experiments = list_experiments(session)
         if not experiments:
             st.info("暂无实验，请点击「新建实验」创建")
             return
@@ -56,6 +60,10 @@ def _show_experiment_list(user):
                 with col6:
                     _show_status_buttons(session, exp, user)
                 st.markdown("---")
+
+        # ── 确认弹窗（渲染在列表末尾）──
+        _render_confirm_dialog(session, user)
+
     finally:
         session.close()
 
@@ -65,36 +73,73 @@ def _show_status_buttons(session, exp, user):
     if not is_owner:
         st.caption("🔒 仅创建者可操作")
         return
+
+    confirm = st.session_state.confirm
     cols = st.columns(3)
     idx = 0
+
     if exp.status == "draft":
         if cols[idx].button("▶ 灰度", key=f"ramp_{exp.id}"):
-            update_experiment_status(session, exp.id, "ramp_up")
-            st.experimental_rerun()
+            _request_confirm("status", exp, "ramp_up", f"启动灰度：'{exp.name}' ？")
         idx += 1
         if cols[idx].button("🗑 删除", key=f"del_{exp.id}"):
-            delete_experiment(session, exp.id, creator_id=user["id"])
-            st.experimental_rerun()
+            _request_confirm("delete", exp, None, f"删除实验：'{exp.name}' ？此操作不可恢复！")
     elif exp.status == "ramp_up":
         if cols[0].button("▶ 全量", key=f"run_{exp.id}"):
-            update_experiment_status(session, exp.id, "running")
-            st.experimental_rerun()
+            _request_confirm("status", exp, "running", f"全量运行：'{exp.name}' ？")
         if cols[1].button("⏸ 暂停", key=f"pause_{exp.id}"):
-            update_experiment_status(session, exp.id, "paused")
-            st.experimental_rerun()
+            _request_confirm("status", exp, "paused", f"暂停实验：'{exp.name}' ？")
     elif exp.status == "running":
         if cols[0].button("⏸ 暂停", key=f"pause2_{exp.id}"):
-            update_experiment_status(session, exp.id, "paused")
-            st.experimental_rerun()
+            _request_confirm("status", exp, "paused", f"暂停实验：'{exp.name}' ？")
         if cols[1].button("⏹ 结束", key=f"end_{exp.id}"):
-            update_experiment_status(session, exp.id, "ended")
-            st.experimental_rerun()
+            _request_confirm("status", exp, "ended", f"结束实验：'{exp.name}' ？")
     elif exp.status == "paused":
         if cols[0].button("▶ 恢复", key=f"resume_{exp.id}"):
-            update_experiment_status(session, exp.id, "running")
-            st.experimental_rerun()
+            _request_confirm("status", exp, "running", f"恢复运行：'{exp.name}' ？")
         if cols[1].button("⏹ 结束", key=f"end2_{exp.id}"):
-            update_experiment_status(session, exp.id, "ended")
+            _request_confirm("status", exp, "ended", f"结束实验：'{exp.name}' ？")
+
+
+def _request_confirm(action, exp, new_status, msg):
+    st.session_state.confirm = {
+        "action": action,
+        "exp_id": exp.id,
+        "exp_name": exp.name,
+        "new_status": new_status,
+        "message": msg,
+    }
+    st.experimental_rerun()
+
+
+def _render_confirm_dialog(session, user):
+    confirm = st.session_state.confirm
+    if confirm is None:
+        return
+
+    st.markdown("---")
+    st.warning(f"⚠️ {confirm['message']}")
+
+    col1, col2, col3 = st.columns([1, 1, 3])
+    with col1:
+        if st.button("✅ 确认", key="confirm_yes"):
+            try:
+                if confirm["action"] == "delete":
+                    ok = delete_experiment(session, confirm["exp_id"], creator_id=user["id"])
+                    if ok:
+                        st.success("已删除")
+                    else:
+                        st.error("删除失败")
+                elif confirm["action"] == "status":
+                    update_experiment_status(session, confirm["exp_id"], confirm["new_status"])
+                    st.success(f"状态已更新为「{STATUS_LABELS[confirm['new_status']]}」")
+            except Exception as e:
+                st.error(f"操作失败：{e}")
+            st.session_state.confirm = None
+            st.experimental_rerun()
+    with col2:
+        if st.button("❌ 取消", key="confirm_no"):
+            st.session_state.confirm = None
             st.experimental_rerun()
 
 
@@ -121,6 +166,8 @@ def _show_create_form(user):
             if not name:
                 st.error("请输入实验名称")
             else:
+                # 表单内的预览确认
+                st.info(f"确认创建实验 **{name}**？创建人：{user['username']}，流量：{traffic}%")
                 session = get_session()
                 try:
                     group_configs = [
