@@ -1,6 +1,7 @@
 """实验管理服务：CRUD + 状态机 + 实验组/层管理"""
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from models import Experiment, ExperimentGroup, Layer
 
 # 状态流转规则
@@ -41,6 +42,23 @@ def get_or_create_default_layer(session: Session) -> Layer:
     return layer
 
 
+def _generate_experiment_code(session: Session, owner: str) -> str:
+    """生成实验业务编号：EXP-{owner缩写}-{YYYYMMDD}-{当日序号}"""
+    today_str = date.today().strftime("%Y%m%d")
+    owner_abbr = owner[:4] if len(owner) >= 2 else owner
+    # 查询今天该 owner 已创建的数量
+    count_today = (
+        session.query(func.count(Experiment.id))
+        .filter(
+            Experiment.owner == owner,
+            func.date(Experiment.created_at) == date.today(),
+        )
+        .scalar() or 0
+    )
+    seq = str(count_today + 1).zfill(3)
+    return f"EXP-{owner_abbr}-{today_str}-{seq}"
+
+
 def create_experiment(
     session: Session,
     name: str,
@@ -51,8 +69,10 @@ def create_experiment(
 ) -> Experiment:
     """创建实验及其分组"""
     layer = get_or_create_default_layer(session)
+    exp_code = _generate_experiment_code(session, owner)
 
     exp = Experiment(
+        experiment_code=exp_code,
         name=name,
         hypothesis=hypothesis,
         owner=owner,

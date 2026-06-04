@@ -37,7 +37,7 @@ def _show_experiment_list():
                 col1, col2, col3, col4, col5, col6 = st.columns([3, 1.5, 1, 1.5, 2, 2])
                 with col1:
                     st.markdown(f"**{exp.name}**")
-                    st.caption(f"负责人: {exp.owner or '-'}")
+                    st.caption(f"`{exp.experiment_code}` | 负责人: {exp.owner or '-'}")
                 with col2:
                     status_color = {
                         "draft": "gray", "ramp_up": "orange",

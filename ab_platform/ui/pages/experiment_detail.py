@@ -52,6 +52,7 @@ def _show_detail(session, exp):
 
 
 def _show_basic_info(exp):
+    st.markdown(f"**实验编号：** `{exp.experiment_code}`")
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("状态", STATUS_LABELS[exp.status])

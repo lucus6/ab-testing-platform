@@ -1,6 +1,6 @@
 """ORM 模型定义"""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -21,6 +21,7 @@ class Experiment(Base):
     __tablename__ = "experiments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    experiment_code = Column(String(50), unique=True, nullable=False, index=True)  # 业务编号 EXP-{owner}-{date}-{seq}
     name = Column(String(200), nullable=False)
     hypothesis = Column(Text)
     status = Column(String(20), default="draft")  # draft/ramp_up/running/paused/ended
@@ -38,6 +39,9 @@ class Experiment(Base):
 
 class ExperimentGroup(Base):
     __tablename__ = "experiment_groups"
+    __table_args__ = (
+        UniqueConstraint("experiment_id", "group_name", name="uq_experiment_group_name"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     experiment_id = Column(Integer, ForeignKey("experiments.id"), nullable=False)
