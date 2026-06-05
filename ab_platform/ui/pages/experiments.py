@@ -141,6 +141,7 @@ def _request_confirm(action, exp, new_status, msg):
         "action": action,
         "exp_id": exp.id,
         "exp_name": exp.name,
+        "exp_code": exp.experiment_code,
         "new_status": new_status,
         "message": msg,
     }
@@ -152,30 +153,58 @@ def _render_confirm_dialog(session, user):
     if confirm is None:
         return
 
-    st.markdown("---")
-    st.warning(f"⚠️ {confirm['message']}")
+    # ── 伪弹窗：占满主区域，居中卡片 ──
+    # 用空白占位清掉上方内容，让卡片聚焦在视觉中心
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1, 3])
-    with col1:
-        if st.button("✅ 确认", key="confirm_yes"):
-            try:
-                if confirm["action"] == "delete":
-                    ok = delete_experiment(session, confirm["exp_id"], creator_id=user["id"])
-                    if ok:
-                        st.success("已删除")
-                    else:
-                        st.error("删除失败")
-                elif confirm["action"] == "status":
-                    update_experiment_status(session, confirm["exp_id"], confirm["new_status"])
-                    st.success(f"状态已更新为「{STATUS_LABELS[confirm['new_status']]}」")
-            except Exception as e:
-                st.error(f"操作失败：{e}")
-            st.session_state.confirm = None
-            st.experimental_rerun()
-    with col2:
-        if st.button("❌ 取消", key="confirm_no"):
-            st.session_state.confirm = None
-            st.experimental_rerun()
+    _, card_col, _ = st.columns([1, 3, 1])
+    with card_col:
+        # 弹窗卡片
+        is_danger = confirm["action"] == "delete"
+        border_color = "#f44336" if is_danger else "#ff9800"
+        icon = "🗑" if is_danger else "⚠️"
+        title = "删除确认" if is_danger else "操作确认"
+
+        st.markdown(f"""
+        <div style="
+            border: 2px solid {border_color};
+            border-radius: 16px;
+            padding: 32px 24px;
+            background: #fff;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            text-align: center;
+            margin: 20px 0;
+        ">
+            <div style="font-size: 40px; margin-bottom: 8px;">{icon}</div>
+            <div style="font-size: 20px; font-weight: 700; margin-bottom: 12px; color: #333;">{title}</div>
+            <div style="font-size: 15px; color: #555; margin-bottom: 24px;">{confirm['message']}</div>
+            <div style="font-size: 13px; color: #999; margin-bottom: 8px;">
+                实验：<b>{confirm['exp_name']}</b> &nbsp;|&nbsp; 编号：<code>{confirm['exp_code']}</code>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            if st.button("✅ 确认", key="confirm_yes", type="primary" if not is_danger else "secondary", use_container_width=True):
+                try:
+                    if confirm["action"] == "delete":
+                        ok = delete_experiment(session, confirm["exp_id"], creator_id=user["id"])
+                        if ok:
+                            st.success("已删除")
+                        else:
+                            st.error("删除失败")
+                    elif confirm["action"] == "status":
+                        update_experiment_status(session, confirm["exp_id"], confirm["new_status"])
+                        st.success(f"状态已更新为「{STATUS_LABELS[confirm['new_status']]}」")
+                except Exception as e:
+                    st.error(f"操作失败：{e}")
+                st.session_state.confirm = None
+                st.experimental_rerun()
+        with btn_col2:
+            if st.button("❌ 取消", key="confirm_no", use_container_width=True):
+                st.session_state.confirm = None
+                st.experimental_rerun()
 
 
 def _show_create_form(user):

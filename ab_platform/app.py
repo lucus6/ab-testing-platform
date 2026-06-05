@@ -288,25 +288,45 @@ def _show_user_center():
                 st.session_state.confirm_delete_account = True
                 st.experimental_rerun()
         else:
-            st.error("确定要注销账户吗？此操作不可撤销！")
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("✅ 确认注销", key="btn_confirm_delete"):
-                    from services.auth_service import delete_account
-                    s = get_session()
-                    try:
-                        delete_account(s, user["id"])
-                    finally:
-                        s.close()
-                    st.session_state.user = None
-                    st.session_state.confirm_delete_account = False
-                    st.experimental_set_query_params()
-                    _clear_session_cache()
-                    st.experimental_rerun()
-            with col2:
-                if st.button("❌ 取消", key="btn_cancel_delete"):
-                    st.session_state.confirm_delete_account = False
-                    st.experimental_rerun()
+            # 弹窗式确认卡片
+            st.markdown("<br>", unsafe_allow_html=True)
+            _, card_col, _ = st.columns([1, 2, 1])
+            with card_col:
+                st.markdown(f"""
+                <div style="
+                    border: 2px solid #f44336;
+                    border-radius: 16px;
+                    padding: 32px 24px;
+                    background: #fff;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+                    text-align: center;
+                    margin: 20px 0;
+                ">
+                    <div style="font-size: 40px; margin-bottom: 8px;">🗑</div>
+                    <div style="font-size: 20px; font-weight: 700; margin-bottom: 12px; color: #333;">注销账户</div>
+                    <div style="font-size: 15px; color: #555; margin-bottom: 24px;">
+                        ⚠️ 你的账户 <b>{user['username']}</b> 及所有实验数据将被<b>永久删除</b>，不可恢复！
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("✅ 确认注销", key="btn_confirm_delete", type="secondary", use_container_width=True):
+                        from services.auth_service import delete_account
+                        s = get_session()
+                        try:
+                            delete_account(s, user["id"])
+                        finally:
+                            s.close()
+                        st.session_state.user = None
+                        st.session_state.confirm_delete_account = False
+                        st.experimental_set_query_params()
+                        _clear_session_cache()
+                        st.experimental_rerun()
+                with c2:
+                    if st.button("❌ 取消", key="btn_cancel_delete", use_container_width=True):
+                        st.session_state.confirm_delete_account = False
+                        st.experimental_rerun()
 
 
 # ═══════════════════════════════════════════════════════════
